@@ -1,0 +1,44 @@
+#!/usr/bin/python3
+
+import argparse, sys, os
+import icu
+
+parser = argparse.ArgumentParser()
+parser.add_argument("infile",help="Input text lines")
+parser.add_argument("-o","--outfile",help="Output results here")
+parser.add_argument("-l","--lang",help="Language sort rules to use")
+parser.add_argument("-s","--sortfile",help="ICU tailoring in a file, may be ldml by .xml extension")
+args = parser.parse_args()
+
+if args.lang is not None:
+    loc = icu.Locale.createFromName(args.lang)
+    coll = icu.Collator.createInstance(loc)
+elif args.sortfile is not None:
+    if args.sortfile.endswith(".xml"):
+        doc = et.parse(args.sortfile)
+        c = doc.find('./collations/collation[@type="standard"]')
+        if c is None:
+            c = doc.find('./collations/collation')
+        if c is None:
+            sys.stderr("Can't find collator in {}".format(args.sortfile))
+        rules = c.find('./cr').text
+    elif os.path.exists(args.sortfile):
+        with open(args.sortfile, encoding="utf-8") as inf:
+            rules = inf.read()
+    else:
+        rules = args.sortfile
+    coll = icu.RuleBasedCollator(rules)
+
+if args.outfile is not None:
+    outf = open(args.outfile, "w", encoding="utf-8")
+else:
+    outf = sys.stdout
+
+with open(args.infile, encoding="utf-8") as inf:
+    data = inf.readlines()
+results = sorted(data, key=coll.getSortKey)
+outf.write("".join(results))
+
+if args.outfile is not None:
+    outf.close()
+
